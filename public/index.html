@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>irl.st — Book Club</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary-color: #8659c0; /* A nice purple */
+      --secondary-color: #6a329f; /* A darker purple */
+      --text-color: #333;
+      --light-bg: #fdf9ff;
+      --border-color: #ddd;
+      --highlight-bg: #f2e9fc; /* Lighter shade of primary for hover/active states */
+      --font-body: 'Lato', sans-serif;
+      --font-heading: 'Playfair Display', serif;
+      --spacing-unit: 1rem;
+    }
+
+    body {
+      font-family: var(--font-body);
+      max-width: 760px; /* Slightly wider for better content flow */
+      margin: 30px auto; /* More vertical margin */
+      padding: 0 var(--spacing-unit);
+      color: var(--text-color);
+      background-color: var(--light-bg);
+      line-height: 1.6; /* Improved readability */
+    }
+
+    h1, h2, h3 {
+      font-family: var(--font-heading);
+      color: var(--primary-color);
+      margin-bottom: calc(var(--spacing-unit) * 0.5); /* Reduced margin for headings */
+      margin-top: calc(var(--spacing-unit) * 1.5);
+    }
+
+    h1 {
+      font-size: 2.5rem; /* Larger and more impactful */
+      color: var(--secondary-color); /* Use a darker purple for main heading */
+      text-align: center;
+      margin-bottom: var(--spacing-unit);
+    }
+
+    .nav {
+      font-size: 0.95rem; /* Slightly larger */
+      margin-bottom: calc(var(--spacing-unit) * 2); /* More spacing below nav */
+      text-align: center; /* Center navigation */
+    }
+    .nav a {
+      margin: 0 15px; /* Adjust margin between links */
+      color: var(--primary-color);
+      text-decoration: none;
+      transition: color 0.3s ease, text-decoration 0.3s ease; /* Smooth transition */
+    }
+    .nav a:hover {
+      color: var(--secondary-color); /* Darker on hover */
+      text-decoration: underline;
+    }
+
+    /* Form Elements */
+    input[type="text"], input[type="url"], select {
+      margin-top: 0.5rem;
+      margin-bottom: 1.2rem; /* More space below inputs */
+      width: 100%;
+      padding: 0.6rem; /* Slightly more padding */
+      box-sizing: border-box;
+      border: 1px solid var(--border-color);
+      border-radius: 6px; /* Slightly more rounded corners */
+      font-size: 1rem;
+      background-color: white;
+    }
+
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 0.7rem 1.5rem; /* More padding for buttons */
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background-color 0.3s ease; /* Smooth hover effect */
+    }
+    button:hover:not(:disabled) {
+      background-color: var(--secondary-color); /* Darker on hover */
+    }
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    /* Book Block Styling (for overall sections) */
+    .book-block {
+      border: 1px solid var(--border-color);
+      padding: 1.5rem; /* More padding inside the block */
+      border-radius: 8px; /* More rounded corners for blocks */
+      margin-bottom: var(--spacing-unit);
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); /* Subtle shadow for depth */
+    }
+
+    /* Specific styles for the book list in voting.js */
+    #bookList {
+      margin-top: 1.5rem;
+      padding: 0.5rem 0; /* Add some padding around the list */
+    }
+
+    .book-item {
+      display: flex; /* Use flexbox for alignment */
+      align-items: center; /* Vertically center items */
+      margin-bottom: 0.7rem; /* Space between items */
+      padding: 0.6rem 0.8rem; /* Padding within each book item */
+      background-color: #fff;
+      border: 1px solid #eee; /* Light border for individual items */
+      border-radius: 4px;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .book-item:hover {
+      background-color: var(--highlight-bg); /* Highlight on hover */
+      border-color: var(--primary-color); /* Border color change on hover */
+    }
+
+    .book-item label {
+      display: flex; /* Make label a flex container too for checkbox alignment */
+      align-items: center;
+      width: 100%; /* Ensure label takes full width */
+      cursor: pointer;
+      font-size: 1.05rem; /* Slightly larger font for book titles */
+      color: var(--text-color);
+    }
+
+    .book-item input[type="checkbox"] {
+      margin-right: 12px; /* Space between checkbox and text */
+      width: auto; /* Reset width for checkboxes */
+      transform: scale(1.2); /* Slightly larger checkbox */
+      flex-shrink: 0; /* Prevent checkbox from shrinking */
+    }
+
+    .book-item a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: bold; /* Make title bolder */
+      margin-right: 5px; /* Space between title and 'by' */
+    }
+
+    .book-item a:hover {
+      text-decoration: underline;
+    }
+
+    .book-item span { /* For the author text, if you wrap it */
+      color: #555;
+    }
+
+    #msg {
+      padding: var(--spacing-unit);
+      border: 1px solid #a8df9e;
+      background-color: #e6ffe6;
+      border-radius: 5px;
+      color: #2e8b57;
+      text-align: center;
+      margin-top: 2rem;
+      font-weight: bold;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      body {
+        margin: 20px auto;
+        padding: 0 15px;
+      }
+      h1 {
+        font-size: 2rem;
+      }
+      .book-item label {
+        flex-direction: column; /* Stack checkbox and text on small screens */
+        align-items: flex-start;
+      }
+      .book-item input[type="checkbox"] {
+        margin-bottom: 5px; /* Space below checkbox when stacked */
+        margin-right: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    import { initApp } from './app.js';
+    initApp();
+  </script>
+</body>
+</html>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    import { initApp } from './app.js';
+    initApp();
+  </script>
+</body>
+</html>
+
