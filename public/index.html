@@ -263,6 +263,12 @@
         window.addEventListener('hashchange', () => {
             initApp().catch(console.error);
         });
+
+        // Global function to go back to main view
+        window.goToMain = function() {
+            window.location.hash = '';
+            initApp().catch(console.error);
+        };
     </script>
 </body>
 </html>
