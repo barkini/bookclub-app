@@ -43,48 +43,76 @@ async function getVotedUsers() {
 }
 
 export async function initApp() {
-  const container = document.getElementById("app");
-  const route = window.location.hash;
+  try {
+    const container = document.getElementById("app");
+    const route = window.location.hash;
 
-  // If specifically going to books view
-  if (route === "#books") {
-    const mod = await import('./views/books.js');
-    mod.renderBooks(container, db);
-    return;
-  }
+    // If specifically going to books view
+    if (route === "#books") {
+      const mod = await import('./views/books.js');
+      await mod.renderBooks(container, db);
+      return;
+    }
 
-  // Default behavior for main app (no hash or empty hash)
-  const submitted = await getSubmittedUsers();
-  const voted = await getVotedUsers();
+    // Default behavior for main app (no hash or empty hash)
+    const submitted = await getSubmittedUsers();
+    const voted = await getVotedUsers();
 
-  if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
-    const mod = await import('./views/nomination.js?v=${Date.now()}');
-    mod.renderNomination(container, db);
-  } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
-    const mod = await import('./views/voting.js?v=${Date.now()}');
-    // Pass db, users, CURRENT_ROUND, VOTING_DEADLINE to renderVoting
-    mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
-  } else {
-    const mod = await import('./views/results.js?v=${Date.now()}');
-    mod.renderResults(container, db); // Pass db to results view too
+    if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
+      const mod = await import(`./views/nomination.js?v=${Date.now()}`);
+      await mod.renderNomination(container, db);
+    } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
+      const mod = await import(`./views/voting.js?v=${Date.now()}`);
+      // Pass db, users, CURRENT_ROUND, VOTING_DEADLINE to renderVoting
+      await mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
+    } else {
+      const mod = await import(`./views/results.js?v=${Date.now()}`);
+      await mod.renderResults(container, db); // Pass db to results view too
+    }
+  } catch (error) {
+    console.error('Error in initApp:', error);
+    const container = document.getElementById("app");
+    container.innerHTML = `
+      <div class="book-block error" style="text-align: center;">
+        <h2>🚫 Error Loading App</h2>
+        <p>There was an error loading the book club app: ${error.message}</p>
+        <button onclick="location.reload()" style="margin-top: 1rem;">
+          🔄 Refresh Page
+        </button>
+      </div>
+    `;
   }
 }
 
 // Back button from Books view
 export async function goToMain() {
-  const container = document.getElementById("app");
-  
-  const submitted = await getSubmittedUsers();
-  const voted = await getVotedUsers();
+  try {
+    const container = document.getElementById("app");
+    
+    const submitted = await getSubmittedUsers();
+    const voted = await getVotedUsers();
 
-  if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
-    const mod = await import('./views/nomination.js?v=${Date.now()}');
-    mod.renderNomination(container, db);
-  } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
-    const mod = await import('./views/voting.js?v=${Date.now()}');
-    mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
-  } else {
-    const mod = await import('./views/results.js?v=${Date.now()}');
-    mod.renderResults(container, db);
+    if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
+      const mod = await import(`./views/nomination.js?v=${Date.now()}`);
+      await mod.renderNomination(container, db);
+    } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
+      const mod = await import(`./views/voting.js?v=${Date.now()}`);
+      await mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
+    } else {
+      const mod = await import(`./views/results.js?v=${Date.now()}`);
+      await mod.renderResults(container, db);
+    }
+  } catch (error) {
+    console.error('Error in goToMain:', error);
+    const container = document.getElementById("app");
+    container.innerHTML = `
+      <div class="book-block error" style="text-align: center;">
+        <h2>🚫 Navigation Error</h2>
+        <p>There was an error navigating: ${error.message}</p>
+        <button onclick="location.reload()" style="margin-top: 1rem;">
+          🔄 Refresh Page
+        </button>
+      </div>
+    `;
   }
 }
