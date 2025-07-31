@@ -46,12 +46,14 @@ export async function initApp() {
   const container = document.getElementById("app");
   const route = window.location.hash;
 
+  // If specifically going to books view
   if (route === "#books") {
     const mod = await import('./views/books.js');
-    mod.renderBooks(container, db); // Pass db to books view too
+    mod.renderBooks(container, db);
     return;
   }
 
+  // Default behavior for main app (no hash or empty hash)
   const submitted = await getSubmittedUsers();
   const voted = await getVotedUsers();
 
