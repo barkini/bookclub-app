@@ -1,4 +1,16 @@
-// views/results.js
+<div style="margin-top: 2rem; text-align: center; padding: 1rem; background-color: #f8f9fa; border-radius: 8px;">
+        <h3 style="color: var(--secondary-color); margin-top: 0;">Round ${CURRENT_ROUND} Complete!</h3>
+        <p style="margin: 0.5rem 0; font-size: 1.1rem;">
+          Total votes cast: <strong>${votesSnap.size}</strong>
+        </p>
+        <p style="margin: 0.5rem 0;">
+          Happy reading! 📚
+        </p>
+      </div>
+
+      <div class="book-block" style="margin-top: 2rem; background: linear-gradient(135deg, #e3f2fd, #f3e5f5); border: 2px solid var(--primary-color);">
+        <h3 style="color: var(--secondary-color); margin-top: 0; text-align: center;">🚀 Ready for the Next Round?</h3>
+        <button onclick="showNextRoundForm()" style="width: // views/results.js
 import { CURRENT_ROUND } from '../config.js';
 import {
   collection,
