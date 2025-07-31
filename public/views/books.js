@@ -85,33 +85,31 @@ export async function renderBooks(container, db) {
       container.innerHTML = `
         <h1>📖 Books We've Read</h1>
         <div class="nav">
-          <a href="#" onclick="location.reload()">🔄 Back to Main</a>
+          <button onclick="goToMainFromBooks()" style="background: var(--primary-color); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(134, 89, 192, 0.3); border: none; cursor: pointer;" 
+             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.4)'" 
+             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(134, 89, 192, 0.3)'">
+            🔄 Back to current phase
+          </button>
         </div>
         <div class="book-block" style="text-align: center;">
           <h2>No completed rounds yet</h2>
           <p>Books will appear here after the first round is complete!</p>
         </div>
       `;
+      
+      // Set up the button handler
+      setupBackButton();
       return;
     }
 
     container.innerHTML = `
       <h1>📖 Books We've Read</h1>
       <div class="nav" style="margin-bottom: 2rem; text-align: center;">
-      <a href="javascript:void(0)" onclick="goToMainDirect()" style="background: var(--primary-color); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(134, 89, 192, 0.3);" 
-   onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.4)'" 
-   onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(134, 89, 192, 0.3)'">
-  🔄 Back to current phase
-</a>
-
-<script>
-window.goToMainDirect = async function() {
-  // Import and call the main function directly
-  const { goToMain } = await import('../app.js');
-  window.location.hash = '';
-  goToMain();
-}
-</script>
+        <button onclick="goToMainFromBooks()" style="background: var(--primary-color); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(134, 89, 192, 0.3); border: none; cursor: pointer;" 
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.4)'" 
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(134, 89, 192, 0.3)'">
+          🔄 Back to current phase
+        </button>
       </div>
       
       <div style="margin-bottom: 2rem; text-align: center;">
@@ -188,12 +186,15 @@ window.goToMainDirect = async function() {
       </div>
     `;
 
+    // Set up the button handler after rendering
+    setupBackButton();
+
   } catch (error) {
     console.error("Error loading books:", error);
     container.innerHTML = `
       <h1>📖 Books We've Read</h1>
       <div class="nav">
-        <a href="#" onclick="location.reload()">🔄 Back to Main</a>
+        <button onclick="location.reload()">🔄 Refresh Page</button>
       </div>
       <div class="book-block" style="text-align: center; border-color: #ff4d4f; background-color: #fff0f0;">
         <h2 style="color: #a61d24;">Error Loading Books</h2>
@@ -204,4 +205,21 @@ window.goToMainDirect = async function() {
       </div>
     `;
   }
+}
+
+// Helper function to set up the back button
+function setupBackButton() {
+  window.goToMainFromBooks = async function() {
+    try {
+      console.log('Going back to main from books view...');
+      const { goToMain } = await import('../app.js');
+      window.location.hash = '';
+      await goToMain();
+    } catch (error) {
+      console.error('Error going back to main:', error);
+      // Fallback - just reload the page
+      window.location.hash = '';
+      window.location.reload();
+    }
+  };
 }
