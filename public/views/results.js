@@ -4,7 +4,11 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
 export async function renderResults(container, db) {
@@ -49,24 +53,55 @@ export async function renderResults(container, db) {
     const rankedBooks = Array.from(booksMap.values())
       .sort((a, b) => b.votes - a.votes);
 
-    // Find the maximum votes to identify winners
+    // Find the maximum votes to identify potential winners
     const maxVotes = rankedBooks.length > 0 ? rankedBooks[0].votes : 0;
-    const winners = rankedBooks.filter(book => book.votes === maxVotes);
+    const potentialWinners = rankedBooks.filter(book => book.votes === maxVotes);
 
-    // Select winner (random if there's a tie)
-    const winner = winners.length > 0 
-      ? winners[Math.floor(Math.random() * winners.length)]
-      : null;
+    // Check if we already have a stored winner for this round
+    let winner = null;
+    let isRandomlySelected = false;
+    
+    if (potentialWinners.length > 0) {
+      const roundDoc = await getDoc(doc(db, "rounds", `round_${CURRENT_ROUND}`));
+      
+      if (roundDoc.exists() && roundDoc.data().winner) {
+        // Winner already stored
+        const winnerId = roundDoc.data().winner;
+        winner = booksMap.get(winnerId);
+        isRandomlySelected = roundDoc.data().isRandomlySelected || false;
+      } else {
+        // First time determining winner - store it
+        winner = potentialWinners[Math.floor(Math.random() * potentialWinners.length)];
+        isRandomlySelected = potentialWinners.length > 1;
+        
+        // Store the winner in database
+        await setDoc(doc(db, "rounds", `round_${CURRENT_ROUND}`), {
+          round: CURRENT_ROUND,
+          winner: winner.id,
+          isRandomlySelected: isRandomlySelected,
+          totalVotes: votesSnap.size,
+          completedAt: serverTimestamp()
+        });
+      }
+    }
+
+    // Check if next round already exists
+    const nextRoundExists = await checkNextRoundExists(db);
 
     // Render the results
     container.innerHTML = `
-      <h1>🏆 Book Club Results</h1>
-      <div class="nav" style="margin-bottom: 2rem; text-align: center;">
-        <a href="#books" style="background: var(--primary-color); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(134, 89, 192, 0.3);" 
-           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.4)'" 
-           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(134, 89, 192, 0.3)'">
-          📖 View Books We've Read
-        </a>
+      <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 2.8rem; margin-bottom: 0.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));">
+          🏆 Book Club Results
+        </h1>
+        <p style="font-size: 1.2rem; color: #666; margin-bottom: 1rem;">Round ${CURRENT_ROUND}</p>
+        <div class="nav" style="margin-bottom: 2rem;">
+          <a href="#books" style="background: var(--primary-color); color: white; padding: 0.7rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(134, 89, 192, 0.3);" 
+             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.4)'" 
+             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(134, 89, 192, 0.3)'">
+            📖 View Books We've Read
+          </a>
+        </div>
       </div>
       
       ${winner ? `
@@ -93,12 +128,12 @@ export async function renderResults(container, db) {
               <p style="font-size: 1.4rem; font-weight: bold; margin: 1rem 0 0.5rem; color: #b8860b; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                 ${winner.votes} vote${winner.votes !== 1 ? 's' : ''}
               </p>
+              ${isRandomlySelected ? `
+                <p style="font-size: 0.95rem; color: #8b4513; font-style: italic; margin-top: 1rem; opacity: 0.8;">
+                  ${potentialWinners.length > 2 ? `${potentialWinners.length}-way tie` : 'Tie'} - winner selected randomly
+                </p>
+              ` : ''}
             </div>
-            ${winners.length > 1 ? `
-              <p style="font-size: 0.95rem; color: #8b4513; font-style: italic; margin-top: 1rem; opacity: 0.8;">
-                ${winners.length > 2 ? `${winners.length}-way tie` : 'Tie'} - randomly selected winner
-              </p>
-            ` : ''}
           </div>
         </div>
       ` : `
@@ -112,7 +147,7 @@ export async function renderResults(container, db) {
         <h2>📊 Full Rankings</h2>
         <div style="margin-top: 1.5rem;">
           ${rankedBooks.map((book, index) => {
-            const isWinner = winners.some(w => w.id === book.id);
+            const isWinner = winner && book.id === winner.id;
             const rank = index + 1;
             const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}.`;
             
@@ -157,7 +192,68 @@ export async function renderResults(container, db) {
           Happy reading! 📚
         </p>
       </div>
+
+      ${!nextRoundExists ? `
+        <div class="book-block" style="margin-top: 2rem; background: linear-gradient(135deg, #e3f2fd, #f3e5f5); border: 2px solid var(--primary-color);">
+          <h3 style="color: var(--secondary-color); margin-top: 0; text-align: center;">🚀 Ready for the Next Round?</h3>
+          <div style="text-align: center;">
+            <button onclick="showNextRoundForm()" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; padding: 1rem 2rem; border-radius: 12px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 16px rgba(134, 89, 192, 0.3);"
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(134, 89, 192, 0.4)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 16px rgba(134, 89, 192, 0.3)'">
+              🎯 Start Next Round
+            </button>
+          </div>
+          
+          <div id="nextRoundForm" style="display: none; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #ddd;">
+            <h4 style="color: var(--secondary-color); margin-bottom: 1rem;">Set Up Round ${CURRENT_ROUND + 1}</h4>
+            <div style="display: grid; gap: 1rem; max-width: 500px; margin: 0 auto;">
+              <div>
+                <label style="display: block; font-weight: 600; color: var(--secondary-color); margin-bottom: 0.5rem;">
+                  Submission Deadline:
+                </label>
+                <input type="date" id="submissionDeadline" style="width: 100%; padding: 0.7rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; color: var(--secondary-color); margin-bottom: 0.5rem;">
+                  Voting Deadline:
+                </label>
+                <input type="date" id="votingDeadline" style="width: 100%; padding: 0.7rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+              </div>
+              <div>
+                <label style="display: block; font-weight: 600; color: var(--secondary-color); margin-bottom: 0.5rem;">
+                  Discussion Date (optional):
+                </label>
+                <input type="date" id="discussionDate" style="width: 100%; padding: 0.7rem; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem;" />
+              </div>
+              <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem;">
+                <button onclick="createNextRound()" style="background: #28a745; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;"
+                        onmouseover="this.style.backgroundColor='#218838'"
+                        onmouseout="this.style.backgroundColor='#28a745'">
+                  ✅ Create Round ${CURRENT_ROUND + 1}
+                </button>
+                <button onclick="hideNextRoundForm()" style="background: #6c757d; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s ease;"
+                        onmouseover="this.style.backgroundColor='#5a6268'"
+                        onmouseout="this.style.backgroundColor='#6c757d'">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ` : `
+        <div class="book-block" style="margin-top: 2rem; background: linear-gradient(135deg, #e8f5e8, #f0fff0); border: 2px solid #28a745; text-align: center;">
+          <h3 style="color: #155724; margin-top: 0;">✅ Next Round Already Set Up</h3>
+          <p style="color: #155724; margin: 0;">
+            Round ${CURRENT_ROUND + 1} is ready to go! Update your config.js file to move to the next round.
+          </p>
+        </div>
+      `}
     `;
+
+    // Add the JavaScript functions to window for global access
+    window.showNextRoundForm = showNextRoundForm;
+    window.hideNextRoundForm = hideNextRoundForm;
+    window.createNextRound = () => createNextRound(db);
 
   } catch (error) {
     console.error("Error loading results:", error);
@@ -171,5 +267,92 @@ export async function renderResults(container, db) {
         </button>
       </div>
     `;
+  }
+}
+
+// Helper function to check if next round config exists
+async function checkNextRoundExists(db) {
+  try {
+    const nextRoundDoc = await getDoc(doc(db, "config", `round_${CURRENT_ROUND + 1}`));
+    return nextRoundDoc.exists();
+  } catch (error) {
+    console.error("Error checking next round:", error);
+    return false;
+  }
+}
+
+// UI functions for next round management
+function showNextRoundForm() {
+  document.getElementById('nextRoundForm').style.display = 'block';
+  
+  // Set default dates (1 week and 2 weeks from now)
+  const today = new Date();
+  const oneWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const twoWeeks = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const threeWeeks = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000);
+  
+  document.getElementById('submissionDeadline').value = oneWeek.toISOString().split('T')[0];
+  document.getElementById('votingDeadline').value = twoWeeks.toISOString().split('T')[0];
+  document.getElementById('discussionDate').value = threeWeeks.toISOString().split('T')[0];
+}
+
+function hideNextRoundForm() {
+  document.getElementById('nextRoundForm').style.display = 'none';
+}
+
+async function createNextRound(db) {
+  const submissionDeadline = document.getElementById('submissionDeadline').value;
+  const votingDeadline = document.getElementById('votingDeadline').value;
+  const discussionDate = document.getElementById('discussionDate').value;
+  
+  if (!submissionDeadline || !votingDeadline) {
+    alert('Please set both submission and voting deadlines');
+    return;
+  }
+  
+  if (new Date(submissionDeadline) >= new Date(votingDeadline)) {
+    alert('Voting deadline must be after submission deadline');
+    return;
+  }
+  
+  try {
+    // Store next round configuration
+    await setDoc(doc(db, "config", `round_${CURRENT_ROUND + 1}`), {
+      round: CURRENT_ROUND + 1,
+      submissionDeadline: submissionDeadline,
+      votingDeadline: votingDeadline,
+      discussionDate: discussionDate || null,
+      createdAt: serverTimestamp(),
+      createdFromRound: CURRENT_ROUND
+    });
+    
+    // Show success message and update UI
+    document.getElementById('nextRoundForm').innerHTML = `
+      <div style="text-align: center; padding: 2rem;">
+        <h3 style="color: #28a745; margin-bottom: 1rem;">✅ Round ${CURRENT_ROUND + 1} Created!</h3>
+        <p style="color: #155724; margin-bottom: 1rem;">
+          Next round configuration has been saved to the database.
+        </p>
+        <div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; margin: 1rem 0; text-align: left;">
+          <strong>Next Steps:</strong>
+          <ol style="margin: 0.5rem 0; padding-left: 1.5rem;">
+            <li>Update your <code>config.js</code> file:</li>
+            <ul style="margin: 0.5rem 0; padding-left: 1.5rem; font-family: monospace; font-size: 0.9rem;">
+              <li>CURRENT_ROUND: ${CURRENT_ROUND + 1}</li>
+              <li>SUBMISSION_DEADLINE: "${submissionDeadline}"</li>
+              <li>VOTING_DEADLINE: "${votingDeadline}"</li>
+            </ul>
+            <li>Refresh the page to start Round ${CURRENT_ROUND + 1}</li>
+          </ol>
+        </div>
+        <button onclick="location.reload()" style="background: var(--primary-color); color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+          🔄 Refresh Page
+        </button>
+      </div>
+    `;
+    
+  } catch (error) {
+    console.error("Error creating next round:", error);
+    alert('Error creating next round. Please try again.');
   }
 }
