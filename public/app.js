@@ -69,3 +69,22 @@ export async function initApp() {
     mod.renderResults(container, db); // Pass db to results view too
   }
 }
+
+// Back button from Books view
+export async function goToMain() {
+  const container = document.getElementById("app");
+  
+  const submitted = await getSubmittedUsers();
+  const voted = await getVotedUsers();
+
+  if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
+    const mod = await import('./views/nomination.js?v=${Date.now()}');
+    mod.renderNomination(container, db);
+  } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
+    const mod = await import('./views/voting.js?v=${Date.now()}');
+    mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
+  } else {
+    const mod = await import('./views/results.js?v=${Date.now()}');
+    mod.renderResults(container, db);
+  }
+}
