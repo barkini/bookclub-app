@@ -241,33 +241,48 @@
     </div>
 
     <script type="module">
-        import { initApp } from `./app.js?v=${Date.now()}`;
-        
         // Initialize the app when DOM is loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            initApp().catch(error => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                console.log('DOM loaded, importing app...');
+                const { initApp } = await import('./app.js');
+                console.log('App imported, initializing...');
+                await initApp();
+                console.log('App initialized successfully');
+            } catch (error) {
                 console.error('Error initializing app:', error);
                 document.getElementById('app').innerHTML = `
                     <div class="book-block error" style="text-align: center;">
                         <h2>🚫 Error Loading App</h2>
-                        <p>There was an error loading the book club app. Please check your internet connection and try again.</p>
+                        <p>There was an error loading the book club app: ${error.message}</p>
+                        <p style="font-size: 0.9rem; margin-top: 1rem; color: #666;">Check the browser console for more details.</p>
                         <button onclick="location.reload()" style="margin-top: 1rem;">
                             🔄 Refresh Page
                         </button>
                     </div>
                 `;
-            });
+            }
         });
 
         // Handle hash changes for navigation
-        window.addEventListener('hashchange', () => {
-            initApp().catch(console.error);
+        window.addEventListener('hashchange', async () => {
+            try {
+                const { initApp } = await import('./app.js');
+                await initApp();
+            } catch (error) {
+                console.error('Error on hash change:', error);
+            }
         });
 
         // Global function to go back to main view
-        window.goToMain = function() {
-            window.location.hash = '';
-            initApp().catch(console.error);
+        window.goToMain = async function() {
+            try {
+                window.location.hash = '';
+                const { initApp } = await import('./app.js');
+                await initApp();
+            } catch (error) {
+                console.error('Error in goToMain:', error);
+            }
         };
     </script>
 </body>
