@@ -1,171 +1,92 @@
-// app.js - Debug version
-console.log('app.js: Starting to load...');
+import { renderNominations } from "./views/nominations.js";
+import { renderVoting } from "./views/voting.js";
+import { renderResults } from "./views/results.js";
+import { renderBooks } from "./views/books.js";
+import { CURRENT_ROUND, SUBMISSION_DEADLINE, VOTING_DEADLINE, users } from "./config.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
-
-console.log('app.js: Firebase imports successful');
-
-// Make sure to import all these, as they are used in this file
-import { firebaseConfig, users, CURRENT_ROUND, SUBMISSION_DEADLINE, VOTING_DEADLINE } from './config.js';
-
-console.log('app.js: Config imports successful', { users, CURRENT_ROUND, SUBMISSION_DEADLINE, VOTING_DEADLINE });
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js";
+import { getFirestore, collection, getDocs, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js";
+import { firebaseConfig } from "./config.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-console.log('app.js: Firebase initialized');
+const appElement = document.getElementById("app");
 
-function todayDate() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Utility: show loading
+function showLoading() {
+  appElement.innerHTML = "<p>Loading...</p>";
 }
 
-function parseDate(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
+// Utility: format timestamp for display
+function formatDate(ts) {
+  const date = ts.toDate();
+  return date.toLocaleString("default", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function isBefore(dateStr) {
-  return todayDate() <= parseDate(dateStr);
-}
+// Main routing logic based on URL hash
+async function loadView() {
+  showLoading();
 
-async function getSubmittedUsers() {
-  console.log('app.js: Getting submitted users...');
-  try {
-    const snap = await getDocs(query(collection(db, "books"), where("round", "==", CURRENT_ROUND)));
-    const submitted = new Set();
-    snap.forEach(doc => submitted.add(doc.data().userId));
-    console.log('app.js: Submitted users:', Array.from(submitted));
-    return submitted;
-  } catch (error) {
-    console.error('app.js: Error getting submitted users:', error);
-    throw error;
-  }
-}
+  const hash = window.location.hash;
 
-async function getVotedUsers() {
-  console.log('app.js: Getting voted users...');
-  try {
-    const snap = await getDocs(query(collection(db, "votes"), where("round", "==", CURRENT_ROUND)));
-    const voted = new Set();
-    snap.forEach(doc => voted.add(doc.data().userId));
-    console.log('app.js: Voted users:', Array.from(voted));
-    return voted;
-  } catch (error) {
-    console.error('app.js: Error getting voted users:', error);
-    throw error;
-  }
-}
+  if (hash === "#nominations") {
+    renderNominations(db);
+  } else if (hash === "#voting") {
+    const booksRef = collection(db, "books");
+    const snapshot = await getDocs(query(booksRef, where("round", "==", CURRENT_ROUND)));
+    const books = snapshot.docs.map(doc => doc.data());
 
-export async function initApp() {
-  console.log('app.js: initApp() called');
-  
-  try {
-    const container = document.getElementById("app");
-    const route = window.location.hash;
+    // Deduplicate books by title
+    const dedupedBooks = Array.from(new Map(books.map(book => [book.title, book])).values());
 
-    console.log('app.js: Current route:', route);
+    const votesRef = collection(db, "votes");
+    const voteSnapshot = await getDocs(query(votesRef, where("round", "==", CURRENT_ROUND)));
 
-    // If specifically going to books view
-    if (route === "#books") {
-      console.log('app.js: Loading books view...');
-      const mod = await import('./views/books.js');
-      await mod.renderBooks(container, db);
-      console.log('app.js: Books view loaded');
-      return;
-    }
+    // Get users who already voted
+    const votedUsersSet = new Set(voteSnapshot.docs.map(doc => doc.data().userId));
 
-    // Default behavior for main app (no hash or empty hash)
-    console.log('app.js: Getting user submission/voting status...');
-    const submitted = await getSubmittedUsers();
-    const voted = await getVotedUsers();
+    renderVoting(db, dedupedBooks, users, votedUsersSet);
+  } else if (hash === "#results") {
+    const votesRef = collection(db, "votes");
+    const snapshot = await getDocs(query(votesRef, where("round", "==", CURRENT_ROUND)));
+    const votes = snapshot.docs.map(doc => doc.data());
+    renderResults(votes);
+  } else if (hash === "#books") {
+    renderBooks(db);
+  } else {
+    // Default view — show countdowns and phase
+    const now = new Date();
+    const submissionDeadline = new Date(SUBMISSION_DEADLINE);
+    const votingDeadline = new Date(VOTING_DEADLINE);
 
-    console.log('app.js: Status check:', {
-      submittedCount: submitted.size,
-      totalUsers: users.length,
-      votedCount: voted.size,
-      submissionDeadlineValid: isBefore(SUBMISSION_DEADLINE),
-      votingDeadlineValid: isBefore(VOTING_DEADLINE)
-    });
+    let content = "";
 
-    if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
-      console.log('app.js: Loading nomination view...');
-      const mod = await import('./views/nomination.js');
-      await mod.renderNomination(container, db);
-      console.log('app.js: Nomination view loaded');
-    } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
-      console.log('app.js: Loading voting view...');
-      const mod = await import('./views/voting.js');
-      await mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
-      console.log('app.js: Voting view loaded');
+    if (now < submissionDeadline) {
+      const daysLeft = Math.ceil((submissionDeadline - now) / (1000 * 60 * 60 * 24));
+      content += `<h2>📚 Submissions are open!</h2>`;
+      content += `<p>${daysLeft} day(s) left to submit your books.</p>`;
+      content += `<a href="#nominations">Submit Now</a>`;
+    } else if (now < votingDeadline) {
+      const daysLeft = Math.ceil((votingDeadline - now) / (1000 * 60 * 60 * 24));
+      content += `<h2>🗳 Voting is open!</h2>`;
+      content += `<p>${daysLeft} day(s) left to vote.</p>`;
+      content += `<a href="#voting">Vote Now</a>`;
     } else {
-      console.log('app.js: Loading results view...');
-      const mod = await import('./views/results.js');
-      await mod.renderResults(container, db);
-      console.log('app.js: Results view loaded');
+      content += `<h2>🎉 Results coming soon!</h2>`;
+      content += `<a href="#results">View Results</a>`;
     }
-    
-    console.log('app.js: initApp() completed successfully');
-  } catch (error) {
-    console.error('app.js: Error in initApp:', error);
-    const container = document.getElementById("app");
-    container.innerHTML = `
-      <div class="book-block error" style="text-align: center;">
-        <h2>🚫 Error Loading App</h2>
-        <p>There was an error loading the book club app: ${error.message}</p>
-        <p style="font-size: 0.9rem; margin-top: 1rem; color: #666;">Check the browser console for more details.</p>
-        <button onclick="location.reload()" style="margin-top: 1rem;">
-          🔄 Refresh Page
-        </button>
-      </div>
-    `;
-    throw error;
+
+    appElement.innerHTML = content;
   }
 }
 
-// Back button from Books view
-export async function goToMain() {
-  console.log('app.js: goToMain() called');
-  
-  try {
-    const container = document.getElementById("app");
-    
-    const submitted = await getSubmittedUsers();
-    const voted = await getVotedUsers();
+// Set up view loader
+window.addEventListener("hashchange", loadView);
+window.addEventListener("load", loadView);
 
-    if (submitted.size < users.length && isBefore(SUBMISSION_DEADLINE)) {
-      const mod = await import('./views/nomination.js');
-      await mod.renderNomination(container, db);
-    } else if (submitted.size === users.length && voted.size < users.length && isBefore(VOTING_DEADLINE)) {
-      const mod = await import('./views/voting.js');
-      await mod.renderVoting(container, db, users, CURRENT_ROUND, VOTING_DEADLINE, voted);
-    } else {
-      const mod = await import('./views/results.js');
-      await mod.renderResults(container, db);
-    }
-    
-    console.log('app.js: goToMain() completed successfully');
-  } catch (error) {
-    console.error('app.js: Error in goToMain:', error);
-    const container = document.getElementById("app");
-    container.innerHTML = `
-      <div class="book-block error" style="text-align: center;">
-        <h2>🚫 Navigation Error</h2>
-        <p>There was an error navigating: ${error.message}</p>
-        <button onclick="location.reload()" style="margin-top: 1rem;">
-          🔄 Refresh Page
-        </button>
-      </div>
-    `;
-    throw error;
-  }
-}
-
-console.log('app.js: Module loaded successfully');
